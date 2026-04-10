@@ -11,6 +11,9 @@ from app.database import get_db
 from app.models import User
 from app.schemas import TokenData
 from app.config import settings
+from datetime import timedelta
+from app.models import RefreshToken
+from app.core.logger import logger
 
 pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 
@@ -33,9 +36,9 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None) -> s
 oauth2_scheme = OAuth2PasswordBearer(
     tokenUrl="token",
     scopes={
-        "read:items": "Read items",
-        "write:items": "Create or update items",
-        "admin": "Administrative access",
+        "read:items": "Чтение предметов",
+        "write:items": "Создание и обновление предметов",
+        "admin": "Административный доступ",
     },
 )
 
@@ -57,10 +60,12 @@ async def get_current_user(
         token_scopes = payload.get("scopes", "").split()
         token_data = TokenData(email=email, scopes=" ".join(token_scopes))
     except JWTError:
+        logger.warning("Попытка доступа с недействительным токеном")
         raise credentials_exception
 
     for scope in security_scopes.scopes:
         if scope not in token_scopes:
+            logger.warning(f"Пользователь {email} не имеет прав: {scope}")
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"Not enough permissions. Required scope: {scope}"
@@ -71,3 +76,29 @@ async def get_current_user(
     if user is None:
         raise credentials_exception
     return user
+
+def create_refresh_token(data: dict, expires_delta: timedelta | None = None) -> str:
+    to_encode = data.copy()
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.utcnow() + timedelta(days=7)  # долгий срок жизни
+    to_encode.update({"exp": expire, "type": "refresh"})
+    encoded_jwt = jwt.encode(to_encode, settings.secret_key, algorithm=settings.algorithm)
+    return encoded_jwt
+
+async def save_refresh_token(db: AsyncSession, user_id: int, token: str, expires_delta: timedelta):
+    expires_at = datetime.utcnow() + expires_delta
+    db_token = RefreshToken(token=token, user_id=user_id, expires_at=expires_at)
+    db.add(db_token)
+    await db.commit()
+
+def require_role(required_role: str):
+    async def role_checker(current_user: User = Depends(get_current_user)):
+        if current_user.role != required_role:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Operation requires {required_role} role"
+            )
+        return current_user
+    return role_checker
