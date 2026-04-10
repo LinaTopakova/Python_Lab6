@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from app.database import engine, Base
-from app.routers import users_router, auth_router  
+from app.routers import users_router, auth_router, items_router 
 
 app = FastAPI(
     title="JWT Auth Lab",
@@ -11,7 +11,8 @@ app = FastAPI(
 )
 
 app.include_router(users_router)
-app.include_router(auth_router)   
+app.include_router(auth_router)
+app.include_router(items_router)  
 
 @app.on_event("startup")
 async def init_db():

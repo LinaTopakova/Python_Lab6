@@ -4,7 +4,7 @@ from jose import jwt
 from app.config import settings
 from jose import JWTError
 from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import OAuth2PasswordBearer, SecurityScopes
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
@@ -30,9 +30,17 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None) -> s
     encoded_jwt = jwt.encode(to_encode, settings.secret_key, algorithm=settings.algorithm)
     return encoded_jwt
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+oauth2_scheme = OAuth2PasswordBearer(
+    tokenUrl="token",
+    scopes={
+        "read:items": "Read items",
+        "write:items": "Create or update items",
+        "admin": "Administrative access",
+    },
+)
 
 async def get_current_user(
+    security_scopes: SecurityScopes,
     token: str = Depends(oauth2_scheme),
     db: AsyncSession = Depends(get_db)
 ) -> User:
@@ -46,10 +54,18 @@ async def get_current_user(
         email: str = payload.get("sub")
         if email is None:
             raise credentials_exception
-        token_data = TokenData(email=email)
+        token_scopes = payload.get("scopes", "").split()
+        token_data = TokenData(email=email, scopes=" ".join(token_scopes))
     except JWTError:
         raise credentials_exception
-    
+
+    for scope in security_scopes.scopes:
+        if scope not in token_scopes:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Not enough permissions. Required scope: {scope}"
+            )
+
     result = await db.execute(select(User).where(User.email == token_data.email))
     user = result.scalar_one_or_none()
     if user is None:

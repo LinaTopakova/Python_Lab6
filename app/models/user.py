@@ -1,4 +1,5 @@
 from sqlalchemy import Column, Integer, String, Boolean
+
 from app.database import Base
 
 class User(Base):
@@ -8,3 +9,4 @@ class User(Base):
     email = Column(String, unique=True, index=True, nullable=False)
     hashed_password = Column(String, nullable=False)
     is_active = Column(Boolean, default=True)
+    scopes = Column(String, default="read:items")   
