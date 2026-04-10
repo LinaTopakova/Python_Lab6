@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from app.database import engine, Base
+from app.routers import users_router  
 
 app = FastAPI(
     title="JWT Auth Lab",
@@ -8,6 +9,9 @@ app = FastAPI(
     swagger_js_url="/static/swagger-ui-bundle.js",
     swagger_css_url="/static/swagger-ui.css",
 )
+
+# Подключаем роутер пользователей
+app.include_router(users_router)
 
 @app.on_event("startup")
 async def init_db():
