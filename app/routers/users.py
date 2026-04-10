@@ -28,6 +28,11 @@ async def create_user(user: schemas.UserCreate, db: AsyncSession = Depends(get_d
 async def read_users(skip: int = 0, limit: int = 10, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(User).offset(skip).limit(limit))
     return result.scalars().all()
+from app.core.security import get_current_user
+
+@router.get("/me", response_model=schemas.User)
+async def read_users_me(current_user: User = Depends(get_current_user)):
+    return current_user
 
 @router.get("/{user_id}", response_model=schemas.User)
 async def read_user(user_id: int, db: AsyncSession = Depends(get_db)):
@@ -36,3 +41,4 @@ async def read_user(user_id: int, db: AsyncSession = Depends(get_db)):
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     return user
+
