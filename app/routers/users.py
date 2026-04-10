@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from app.core.security import get_password_hash
 
 from app import schemas
 from app.models import User
@@ -16,7 +17,8 @@ async def create_user(user: schemas.UserCreate, db: AsyncSession = Depends(get_d
         raise HTTPException(status_code=400, detail="Email already registered")
     
     # Пароль временно хранится в открытом виде (без хеширования)
-    db_user = User(email=user.email, hashed_password=user.password)
+    hashed = get_password_hash(user.password)
+    db_user = User(email=user.email, hashed_password=hashed)
     db.add(db_user)
     await db.commit()
     await db.refresh(db_user)
